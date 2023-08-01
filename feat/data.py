@@ -2158,10 +2158,11 @@ class VideoDataset(Dataset):
         Dataset: dataset of [batch, channels, height, width] that can be passed to DataLoader
     """
 
-    def __init__(self, video_file, skip_frames=None, output_size=None):
+    def __init__(self, video_file, skip_frames=None, output_size=None, device='cuda:0'):
         self.file_name = video_file
         self.skip_frames = skip_frames
         self.output_size = output_size
+        self.device = torch.device(device)
         self.get_video_metadata(video_file)
         # This is the list of frame ids used to slice the video not video_frames
         self.video_frames = np.arange(
@@ -2191,7 +2192,7 @@ class VideoDataset(Dataset):
             transformed_frame_data = transform(frame_data)
 
             return {
-                "Image": transformed_frame_data["Image"],
+                "Image": transformed_frame_data["Image"].to(self.device),
                 "Frame": frame_idx,
                 "FileName": self.file_name,
                 "Scale": transformed_frame_data["Scale"],

@@ -1,8 +1,5 @@
 from setuptools import setup, find_packages
 
-with open("requirements.txt") as f:
-    requirements = f.read().splitlines()
-
 version = {}
 with open("feat/version.py") as f:
     exec(f.read(), version)
@@ -19,7 +16,6 @@ setup(
     url="https://github.com/cosanlab/py-feat",
     packages=find_packages(),
     package_data={"feat": ["resources/*", "tests/*", "tests/data/*"]},
-    install_requires=requirements,
     license="MIT license",
     zip_safe=False,
     keywords=["feat", "face", "facial expression", "emotion"],

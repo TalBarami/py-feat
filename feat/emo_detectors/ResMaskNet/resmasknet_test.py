@@ -712,7 +712,7 @@ class ResMaskNet:
         )
         self.image_size = (configs["image_size"], configs["image_size"])
 
-        self.model = resmasking_dropout1(in_channels=3, num_classes=7)
+        self.model = resmasking_dropout1(in_channels=3, num_classes=7).to(self.device)
 
         self.model.load_state_dict(
             torch.load(

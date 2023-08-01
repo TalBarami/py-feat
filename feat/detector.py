@@ -220,7 +220,7 @@ class Detector(object):
                 elif landmark == "mobilefacenet":
                     self.landmark_detector = self.landmark_detector(
                         [112, 112], 136, **landmark_model_kwargs
-                    )
+                    ).to(self.device)
                     checkpoint = torch.load(
                         os.path.join(
                             get_resource_path(), "mobilefacenet_model_best.pth.tar"
@@ -275,11 +275,12 @@ class Detector(object):
             if self.info["au_model"] in ["svm", "xgb"]:
                 self.info["au_presence_columns"] = AU_LANDMARK_MAP["Feat"]
             else:
-                self.info["au_presence_columns"] = AU_LANDMARK_MAP[
-                    self.info["au_model"]
-                ]
+                self.info["au_presence_columns"] = AU_LANDMARK_MAP[self.info["au_model"]]
             if self.au_model is not None:
-                self.au_model = self.au_model(**au_model_kwargs)
+                if au == 'graphau':
+                    self.au_model = self.au_model(device=self.device, **au_model_kwargs)
+                else:
+                    self.au_model = self.au_model(**au_model_kwargs)
                 predictions = np.full_like(
                     np.atleast_2d(self.info["au_presence_columns"]), np.nan
                 )
@@ -523,7 +524,7 @@ class Detector(object):
             >>> detector.detect_aus(frame)
         """
 
-        logging.info("detecting aus...")
+        logging.info("detecting aus...") # TODO: Frame(Batch, Channels, Height, Width)
         frame = convert_image_to_tensor(frame, img_type="float32")
 
         if is_list_of_lists_empty(landmarks):
@@ -540,7 +541,7 @@ class Detector(object):
                 )
             else:
                 au_predictions = self.au_model.detect_au(
-                    frame, landmarks=landmarks, **au_model_kwargs
+                    frame, landmarks, **au_model_kwargs
                 )
 
             return self._convert_detector_output(landmarks, au_predictions)
@@ -561,12 +562,13 @@ class Detector(object):
         hog_features = []
         new_landmark_frames = []
         for i, frame_landmark in enumerate(landmarks):
+            frame_landmark = torch.tensor(frame_landmark, device=self.device)
             if len(frame_landmark) != 0:
                 new_landmarks_faces = []
                 for j in range(len(frame_landmark)):
                     convex_hull, new_landmark = extract_face_from_landmarks(
-                        frame=frames[i],
-                        landmarks=frame_landmark[j],
+                        frame=frames[i].to("cpu"),
+                        landmarks=frame_landmark[j].to("cpu"),
                         face_size=112,
                     )
 
@@ -848,7 +850,7 @@ class Detector(object):
         facepose_model_kwargs = kwargs.pop("facepose_model_kwargs", dict())
 
         dataset = VideoDataset(
-            video_path, skip_frames=skip_frames, output_size=output_size
+            video_path, skip_frames=skip_frames, output_size=output_size, device=self.device
         )
 
         data_loader = DataLoader(
@@ -1198,3 +1200,19 @@ class Detector(object):
                     overlap_poses.append(overlap_poses_frame)
 
             return (overlap_faces, overlap_poses)
+
+if __name__ == '__main__':
+    file = r'Z:\Users\Liora\Project 1 - Video recorsings for analyses\Tamar_dinstein_cognitive.mp4'
+    models = {
+        'face_model': 'img2pose',
+        'landmark_model': 'mobilefacenet',
+        'au_model': 'graphau',
+        # 'au_model': 'xgb',
+        'emotion_model': 'resmasknet',
+        'facepose_model': 'img2pose'
+    }
+    skip_frames = 1
+    batch_size = 32
+    device = torch.device('cuda:1')
+    detector = Detector(**models, device=device)
+    df = detector.detect_video(file, skip_frames=skip_frames, singleframe4error=True, batch_size=batch_size)

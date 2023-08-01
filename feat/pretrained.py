@@ -9,7 +9,7 @@ from feat.landmark_detectors.basenet_test import MobileNet_GDConv
 from feat.landmark_detectors.pfld_compressed_test import PFLDInference
 from feat.landmark_detectors.mobilefacenet_test import MobileFaceNet
 from feat.facepose_detectors.img2pose.img2pose_test import Img2Pose
-from feat.au_detectors.StatLearning.SL_test import SVMClassifier, XGBClassifier
+from feat.au_detectors.StatLearning.SL_test import SVMClassifier, XGBClassifier, GraphAUClassifier
 from feat.emo_detectors.ResMaskNet.resmasknet_test import ResMaskNet
 from feat.emo_detectors.StatLearning.EmoSL_test import (
     EmoSVMClassifier,
@@ -33,7 +33,7 @@ PRETRAINED_MODELS = {
         {"mobilefacenet": MobileFaceNet},
         {"pfld": PFLDInference},
     ],
-    "au_model": [{"svm": SVMClassifier}, {"xgb": XGBClassifier}],
+    "au_model": [{"svm": SVMClassifier}, {"xgb": XGBClassifier}, {"graphau": GraphAUClassifier}],
     "emotion_model": [
         {"resmasknet": ResMaskNet},
         {"svm": EmoSVMClassifier},
@@ -87,6 +87,9 @@ AU_LANDMARK_MAP = {
         "AU28",
         "AU43",
     ],
+    "graphau" : ['AU1', 'AU2', 'AU4', 'AU5', 'AU6', 'AU7', 'AU9', 'AU10', 'AU11', 'AU12', 'AU13', 'AU14', 'AU15', 'AU16', 'AU17',
+                'AU18', 'AU19', 'AU20', 'AU22', 'AU23', 'AU24', 'AU25', 'AU26', 'AU27', 'AU32', 'AU38', 'AU39', 'AUL1', 'AUR1',
+                'AUL2', 'AUR2', 'AUL4', 'AUR4', 'AUL6', 'AUR6', 'AUL10', 'AUR10', 'AUL12', 'AUR12', 'AUL14', 'AUR14']
 }
 
 
@@ -146,38 +149,39 @@ def get_pretrained_models(
             raise ValueError(
                 f"Requested au_model was {au_model}. Must be one of {[list(e.keys())[0]for e in PRETRAINED_MODELS['au_model']]}"
             )
-        for url in model_urls["au_detectors"][au_model]["urls"]:
-            download_url(url, get_resource_path(), verbose=verbose)
-            if au_model in ["xgb", "svm"]:
-                download_url(
-                    model_urls["au_detectors"]["hog-pca"]["urls"][0],
-                    get_resource_path(),
-                    verbose=verbose,
-                )
-                download_url(
-                    model_urls["au_detectors"]["hog-pca"]["urls"][1],
-                    get_resource_path(),
-                    verbose=verbose,
-                )
-                download_url(
-                    model_urls["au_detectors"]["hog-pca"]["urls"][2],
-                    get_resource_path(),
-                    verbose=verbose,
-                )
-                download_url(
-                    model_urls["au_detectors"]["hog-pca"]["urls"][3],
-                    get_resource_path(),
-                    verbose=verbose,
-                )
-                download_url(
-                    model_urls["au_detectors"]["hog-pca"]["urls"][4],
-                    get_resource_path(),
-                    verbose=verbose,
-                )
-                download_url(
-                    model_urls["au_detectors"]["hog-pca"]["urls"][5],
-                    get_resource_path(),
-                    verbose=verbose,
+        if au_model in ["xgb", "svm"]: # TODO: Download pretrained for graphau
+            for url in model_urls["au_detectors"][au_model]["urls"]:
+                download_url(url, get_resource_path(), verbose=verbose)
+                if au_model in ["xgb", "svm"]:
+                    download_url(
+                        model_urls["au_detectors"]["hog-pca"]["urls"][0],
+                        get_resource_path(),
+                        verbose=verbose,
+                    )
+                    download_url(
+                        model_urls["au_detectors"]["hog-pca"]["urls"][1],
+                        get_resource_path(),
+                        verbose=verbose,
+                    )
+                    download_url(
+                        model_urls["au_detectors"]["hog-pca"]["urls"][2],
+                        get_resource_path(),
+                        verbose=verbose,
+                    )
+                    download_url(
+                        model_urls["au_detectors"]["hog-pca"]["urls"][3],
+                        get_resource_path(),
+                        verbose=verbose,
+                    )
+                    download_url(
+                        model_urls["au_detectors"]["hog-pca"]["urls"][4],
+                        get_resource_path(),
+                        verbose=verbose,
+                    )
+                    download_url(
+                        model_urls["au_detectors"]["hog-pca"]["urls"][5],
+                        get_resource_path(),
+                        verbose=verbose,
                 )
     # Emotion model
     if emotion_model is None:

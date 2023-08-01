@@ -7,7 +7,7 @@ import joblib
 import pickle
 import os
 import xgboost as xgb
-
+from graphau.detector import GraphAUDetector
 
 def load_classifier(cf_path):
     clf = joblib.load(cf_path)
@@ -199,3 +199,25 @@ class XGBClassifier:
 
         pred_aus = np.array(pred_aus).T
         return pred_aus
+
+class GraphAUClassifier:
+    def __init__(self, device):
+        self.classifier = GraphAUDetector(device)
+
+    def detect_au(self, frames, landmarks):
+        out = []
+        for frame, landmark in zip(frames, landmarks):
+            frame = frame.detach().cpu().numpy().astype(np.uint8).transpose(1, 2, 0)
+            h, w, _ = frame.shape
+            for person in landmark:
+                # calc facebox:
+                facebox = np.array([np.min(person[:, 0]), np.max(person[:, 0]), np.min(person[:, 1]), np.max(person[:, 1])])
+                _w, _h = facebox[1] - facebox[0], facebox[3] - facebox[2]
+                facebox[0] = max(0, facebox[0] - _w * 1)
+                facebox[1] = min(w, facebox[1] + _w * 1)
+                facebox[2] = max(0, facebox[2] - _h * 2)
+                facebox[3] = min(h, facebox[3] + _h * 1)
+                facebox = facebox.astype(int)
+                sub_frame = frame[facebox[2]:facebox[3], facebox[0]:facebox[1]]
+                out.append(self.classifier.detect(sub_frame))
+        return np.array(out)

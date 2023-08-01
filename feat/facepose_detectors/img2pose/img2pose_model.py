@@ -75,10 +75,10 @@ class img2poseModel:
             expand_forehead=expand_forehead,
         )
 
-        if self.device.type == "cpu":
-            self.fpn_model = WrappedModel(self.fpn_model)
-        else:  # GPU
-            self.fpn_model = DataParallel(self.fpn_model)
+        # if self.device.type == "cpu":
+        self.fpn_model = WrappedModel(self.fpn_model)
+        # else:  # GPU
+        #     self.fpn_model = DataParallel(self.fpn_model)
         self.fpn_model = self.fpn_model.to(self.device)
 
     def evaluate(self):
