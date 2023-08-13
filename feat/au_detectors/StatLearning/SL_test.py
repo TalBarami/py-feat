@@ -210,7 +210,6 @@ class GraphAUClassifier:
             frame = frame.detach().cpu().numpy().astype(np.uint8).transpose(1, 2, 0)
             h, w, _ = frame.shape
             for person in landmark:
-                # calc facebox:
                 facebox = np.array([np.min(person[:, 0]), np.max(person[:, 0]), np.min(person[:, 1]), np.max(person[:, 1])])
                 _w, _h = facebox[1] - facebox[0], facebox[3] - facebox[2]
                 facebox[0] = max(0, facebox[0] - _w * 1)

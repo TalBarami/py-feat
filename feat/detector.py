@@ -30,6 +30,7 @@ from feat.data import (
     Fex,
     ImageDataset,
     VideoDataset,
+    ImageBasedVideoDataset,
     _inverse_face_transform,
     _inverse_landmark_transform,
 )
@@ -849,9 +850,10 @@ class Detector(object):
         emotion_model_kwargs = kwargs.pop("emotion_model_kwargs", dict())
         facepose_model_kwargs = kwargs.pop("facepose_model_kwargs", dict())
 
-        dataset = VideoDataset(
-            video_path, skip_frames=skip_frames, output_size=output_size, device=self.device
-        )
+        # dataset = VideoDataset(
+        #     video_path, skip_frames=skip_frames, output_size=output_size, device=self.device
+        # )
+        dataset = ImageBasedVideoDataset(video_path, skip_frames=skip_frames, output_size=output_size, device=self.device)
 
         data_loader = DataLoader(
             dataset,
@@ -893,6 +895,7 @@ class Detector(object):
         batch_output["approx_time"] = [
             dataset.calc_approx_frame_time(x) for x in batch_output["frame"].to_numpy()
         ]
+        dataset.close()
         return batch_output.set_index("frame", drop=False)
 
     def _create_fex(

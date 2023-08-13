@@ -42,6 +42,9 @@ from PIL import Image
 import logging
 import av
 from itertools import islice
+import pathlib
+from os import path as osp
+import cv2
 
 __all__ = [
     "FexSeries",
@@ -1918,9 +1921,9 @@ class ImageDataset(Dataset):
             img = torch.cat([img, img, img], dim=0)
 
         if self.output_size is not None:
-            logging.info(
-                f"ImageDataSet: RESCALING WARNING: from {img.shape} to output_size={self.output_size}"
-            )
+            # logging.info(
+            #     f"ImageDataSet: RESCALING WARNING: from {img.shape} to output_size={self.output_size}"
+            # )
             transform = Compose(
                 [
                     Rescale(
@@ -2089,9 +2092,9 @@ class imageLoader_DISFAPlus(ImageDataset):
         label = self.main_file.loc[idx, self.avail_AUs].to_numpy().astype(np.int16)
 
         if self.output_size is not None:
-            logging.info(
-                f"imageLoader_DISFAPlus: RESCALING WARNING: from {img.shape} to output_size={self.output_size}"
-            )
+            # logging.info(
+            #     f"imageLoader_DISFAPlus: RESCALING WARNING: from {img.shape} to output_size={self.output_size}"
+            # )
             transform = Compose(
                 [
                     Rescale(
@@ -2183,9 +2186,9 @@ class VideoDataset(Dataset):
 
         # Rescale if needed like in ImageDataset
         if self.output_size is not None:
-            logging.info(
-                f"VideoDataset: RESCALING WARNING: from {self.metadata['shape']} to output_size={self.output_size}"
-            )
+            # logging.info(
+            #     f"VideoDataset: RESCALING WARNING: from {self.metadata['shape']} to output_size={self.output_size}"
+            # )
             transform = Compose(
                 [Rescale(self.output_size, preserve_aspect_ratio=True, padding=False)]
             )
@@ -2258,3 +2261,48 @@ class VideoDataset(Dataset):
         minutes = int(duration // 60)
         seconds = int(duration % 60)
         return f"{minutes:02d}:{seconds:02d}"
+
+class ImageBasedVideoDataset(VideoDataset):
+    IMG_DIR = osp.join(pathlib.Path(__file__).parent.parent.resolve(), 'temp_images')
+    def __init__(self, video_file, skip_frames=None, output_size=None, device='cuda:0'):
+        self.file_name = video_file
+        self.video_name = osp.basename(video_file)
+        pathlib.Path(osp.join(self.IMG_DIR, self.video_name)).mkdir(parents=True, exist_ok=True)
+        self.skip_frames = skip_frames
+        self.output_size = output_size
+        self.device = torch.device(device)
+        resolution, fps, frame_count = self.prepare()
+        length = frame_count
+        self.metadata = {
+            "fps": fps,
+            "fps_frac": fps,
+            "height": resolution[1],
+            "width": resolution[0],
+            "num_frames": frame_count,
+            "shape": (resolution[1], resolution[0]),
+        }
+        self.video_frames = np.arange(0, self.metadata["num_frames"], 1 if skip_frames is None else skip_frames)
+
+    def prepare(self):
+        cap = cv2.VideoCapture(self.file_name)
+        i = 0
+        width, height = None, None
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        while(cap.isOpened()):
+            ret, frame = cap.read()
+            width, height, _ = frame.shape
+            if ret == False:
+                break
+            cv2.imwrite(osp.join(self.IMG_DIR, self.video_name, f'{i}.jpg'),frame)
+            i+=1
+        return (width, height), fps, i
+
+    def load_frame(self, idx):
+        frame_idx = int(self.video_frames[idx])
+        frame_data = cv2.imread(osp.join(self.IMG_DIR, self.video_name, f'{frame_idx}.jpg'))
+        frame_data = torch.from_numpy(frame_data)
+        return frame_data, frame_idx
+
+    def close(self):
+        video_name = osp.basename(self.file_name)
+        shutil.rmtree(osp.join(self.IMG_DIR, video_name))

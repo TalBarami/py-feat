@@ -148,9 +148,9 @@ class Img2Pose:
         scale = 1
         border_size = 0
         if min(img.shape[-2:]) < self.MIN_SIZE or max(img.shape[-2:]) > self.MAX_SIZE:
-            logging.info(
-                f"img2pose: RESCALING WARNING: img2pose has a min img size of {self.MIN_SIZE} and a max img size of {self.MAX_SIZE} but checked value is {img.shape[-2:]}."
-            )
+            # logging.info(
+            #     f"img2pose: RESCALING WARNING: img2pose has a min img size of {self.MIN_SIZE} and a max img size of {self.MAX_SIZE} but checked value is {img.shape[-2:]}."
+            # )
             transform = Compose([Rescale(self.MAX_SIZE, preserve_aspect_ratio=True)])
             transformed_img = transform(img)
             img = transformed_img["Image"]
