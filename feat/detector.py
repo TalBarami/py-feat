@@ -29,8 +29,9 @@ from feat.pretrained import get_pretrained_models, fetch_model, AU_LANDMARK_MAP
 from feat.data import (
     Fex,
     ImageDataset,
-    VideoDataset,
-    ImageBasedVideoDataset,
+    # VideoDataset,
+    # ImageBasedVideoDataset,
+    IterableVideoDataset,
     _inverse_face_transform,
     _inverse_landmark_transform,
 )
@@ -853,7 +854,8 @@ class Detector(object):
         # dataset = VideoDataset(
         #     video_path, skip_frames=skip_frames, output_size=output_size, device=self.device
         # )
-        dataset = ImageBasedVideoDataset(video_path, skip_frames=skip_frames, output_size=output_size, device=self.device)
+        # dataset = ImageBasedVideoDataset(video_path, skip_frames=skip_frames, output_size=output_size, device=self.device)
+        dataset = IterableVideoDataset(video_path, skip_frames=skip_frames, output_size=output_size, device=self.device)
 
         data_loader = DataLoader(
             dataset,
@@ -889,7 +891,7 @@ class Detector(object):
             )
 
             batch_output.append(output)
-
+        del dataset
         batch_output = pd.concat(batch_output)
         batch_output.reset_index(drop=True, inplace=True)
         batch_output["approx_time"] = [

@@ -1,7 +1,7 @@
 """
 Py-FEAT Data classes.
 """
-
+import shutil
 import warnings
 
 # Suppress nilearn warnings that come from importing nltools
@@ -23,7 +23,7 @@ from sklearn.model_selection import cross_val_score
 from torchvision.transforms import Compose
 from torchvision import transforms
 from torchvision.io import read_image, read_video
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, IterableDataset
 from torch import swapaxes
 from feat.transforms import Rescale
 from feat.utils.io import read_feat, read_openface
@@ -2263,7 +2263,8 @@ class VideoDataset(Dataset):
         return f"{minutes:02d}:{seconds:02d}"
 
 class ImageBasedVideoDataset(VideoDataset):
-    IMG_DIR = osp.join(pathlib.Path(__file__).parent.parent.resolve(), 'temp_images')
+    # IMG_DIR = osp.join(pathlib.Path(__file__).parent.parent.resolve(), 'temp_images')
+    IMG_DIR = r'C:\research\pyfeat\runs'
     def __init__(self, video_file, skip_frames=None, output_size=None, device='cuda:0'):
         self.file_name = video_file
         self.video_name = osp.basename(video_file)
@@ -2290,11 +2291,12 @@ class ImageBasedVideoDataset(VideoDataset):
         fps = cap.get(cv2.CAP_PROP_FPS)
         while(cap.isOpened()):
             ret, frame = cap.read()
-            width, height, _ = frame.shape
-            if ret == False:
+            if ret:
+                width, height, _ = frame.shape
+                cv2.imwrite(osp.join(self.IMG_DIR, self.video_name, f'{i}.jpg'), frame)
+                i += 1
+            else:
                 break
-            cv2.imwrite(osp.join(self.IMG_DIR, self.video_name, f'{i}.jpg'),frame)
-            i+=1
         return (width, height), fps, i
 
     def load_frame(self, idx):
@@ -2306,3 +2308,81 @@ class ImageBasedVideoDataset(VideoDataset):
     def close(self):
         video_name = osp.basename(self.file_name)
         shutil.rmtree(osp.join(self.IMG_DIR, video_name))
+
+class IterableVideoDataset(IterableDataset):
+    def __init__(self, video_file, skip_frames=None, output_size=None, device='cuda:0'):
+        self.file_name = video_file
+        self.skip_frames = skip_frames
+        self.output_size = output_size
+        self.device = torch.device(device)
+        self.metadata = self.get_metadata()
+        self.video_frames = np.arange(0, self.metadata["num_frames"], 1 if skip_frames is None else skip_frames)
+        self.i = 0
+        self.transform = Compose([Rescale(self.output_size, preserve_aspect_ratio=True, padding=False)])
+
+    def get_metadata(self):
+        cap = cv2.VideoCapture(self.file_name)
+        i = 0
+        width, height, fps = cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_HEIGHT), cap.get(cv2.CAP_PROP_FPS)
+        return {
+            'fps': fps,
+            'fps_frac': fps,
+            'height': height,
+            'width': width,
+            'num_frames': i,
+            'shape': (height, width),
+        }
+
+    def __iter__(self):
+        self.cap = cv2.VideoCapture(self.file_name)
+        return self
+
+    def __next__(self):
+        frame_idx = self.i
+        ret, frame = False, None
+        for _ in range(self.skip_frames):
+            ret, frame = self.cap.read()
+            self.i += 1
+        if not ret or frame is None:
+            self.cap.release()
+            self.metadata['num_frames'] = self.i
+            raise StopIteration
+        frame = swapaxes(swapaxes(torch.from_numpy(frame), 0, -1), 1, 2)
+        if self.output_size is not None:
+            transformed_frame_data = self.transform(frame)
+            return {
+                "Image": transformed_frame_data["Image"].to(self.device),
+                "Frame": frame_idx,
+                "FileName": self.file_name,
+                "Scale": transformed_frame_data["Scale"],
+                "Padding": transformed_frame_data["Padding"],
+            }
+        else:
+            return {
+                "Image": frame.to(self.device),
+                "Frame": frame_idx,
+                "FileName": self.file_name,
+                "Scale": 1.0,
+                "Padding": {"Left": 0, "Top": 0, "Right": 0, "Bottom": 0},
+            }
+
+    def calc_approx_frame_time(self, idx):
+        """Calculate the approximate time of a frame in a video
+
+        Args:
+            frame_idx (int): frame number
+
+        Returns:
+            float: time in seconds
+        """
+        frame_time = idx / self.metadata["fps"]
+        total_time = self.metadata["num_frames"] / self.metadata["fps"]
+        time = total_time if idx >= self.metadata["num_frames"] else frame_time
+        return self.convert_sec_to_min_sec(time)
+
+    @staticmethod
+    def convert_sec_to_min_sec(duration):
+        minutes = int(duration // 60)
+        seconds = int(duration % 60)
+        return f"{minutes:02d}:{seconds:02d}"
+
