@@ -204,19 +204,23 @@ class GraphAUClassifier:
     def __init__(self, device):
         self.classifier = GraphAUDetector(device)
 
-    def detect_au(self, frames, landmarks):
+    def detect_au(self, frames, faces):
         out = []
-        for frame, landmark in zip(frames, landmarks):
+        for frame, frame_faces in zip(frames, faces):
             frame = frame.detach().cpu().numpy().astype(np.uint8).transpose(1, 2, 0)
             h, w, _ = frame.shape
-            for person in landmark:
-                facebox = np.array([np.min(person[:, 0]), np.max(person[:, 0]), np.min(person[:, 1]), np.max(person[:, 1])])
-                _w, _h = facebox[1] - facebox[0], facebox[3] - facebox[2]
-                facebox[0] = max(0, facebox[0] - _w * 1)
-                facebox[1] = min(w, facebox[1] + _w * 1)
-                facebox[2] = max(0, facebox[2] - _h * 2)
-                facebox[3] = min(h, facebox[3] + _h * 1)
-                facebox = facebox.astype(int)
-                sub_frame = frame[facebox[2]:facebox[3], facebox[0]:facebox[1]]
+            for (x1, y1, x2, y2, s) in frame_faces:
+                sx, sy = (x2-x1) * 0.1, (y2-y1) * 0.1
+                x1, y1, x2, y2 = int(x1-sx), int(y1-sy), int(x2+sx), int(y2+sy)
+                x1, y1, x2, y2 = max(0, x1), max(0, y1), min(w, x2), min(h, y2)
+                # facebox = np.array([np.min(person[:, 0]), np.max(person[:, 0]), np.min(person[:, 1]), np.max(person[:, 1])])
+                # _w, _h = facebox[1] - facebox[0], facebox[3] - facebox[2]
+                # facebox[0] = max(0, facebox[0] - _w * 1)
+                # facebox[1] = min(w, facebox[1] + _w * 1)
+                # facebox[2] = max(0, facebox[2] - _h * 2)
+                # facebox[3] = min(h, facebox[3] + _h * 1)
+                # facebox = facebox.astype(int)
+                # sub_frame = frame[facebox[2]:facebox[3], facebox[0]:facebox[1]]
+                sub_frame = frame[y1:y2, x1:x2]
                 out.append(self.classifier.detect(sub_frame))
         return np.array(out)

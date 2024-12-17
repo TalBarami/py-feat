@@ -508,7 +508,7 @@ class Detector(object):
 
         return output
 
-    def detect_aus(self, frame, landmarks, **au_model_kwargs):
+    def detect_aus(self, frame, landmarks, faces, **au_model_kwargs):
         """Detect Action Units from image or video frame
 
         Args:
@@ -543,7 +543,7 @@ class Detector(object):
                 )
             else:
                 au_predictions = self.au_model.detect_au(
-                    frame, landmarks, **au_model_kwargs
+                    frame, faces, **au_model_kwargs
                 )
 
             return self._convert_detector_output(landmarks, au_predictions)
@@ -701,7 +701,7 @@ class Detector(object):
         poses_dict = self.detect_facepose(
             batch_data["Image"], landmarks, **facepose_model_kwargs
         )
-        aus = self.detect_aus(batch_data["Image"], landmarks, **au_model_kwargs)
+        aus = self.detect_aus(batch_data["Image"], landmarks, faces, **au_model_kwargs)
         emotions = self.detect_emotions(
             batch_data["Image"], faces, landmarks, **emotion_model_kwargs
         )
