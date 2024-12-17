@@ -7,7 +7,7 @@ import joblib
 import pickle
 import os
 import xgboost as xgb
-from graphau.detector import GraphAUDetector
+# from graphau.detector import GraphAUDetector
 
 def load_classifier(cf_path):
     clf = joblib.load(cf_path)
