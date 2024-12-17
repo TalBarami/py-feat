@@ -891,13 +891,12 @@ class Detector(object):
             )
 
             batch_output.append(output)
-        del dataset
         batch_output = pd.concat(batch_output)
         batch_output.reset_index(drop=True, inplace=True)
         batch_output["approx_time"] = [
             dataset.calc_approx_frame_time(x) for x in batch_output["frame"].to_numpy()
         ]
-        dataset.close()
+
         return batch_output.set_index("frame", drop=False)
 
     def _create_fex(
