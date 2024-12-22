@@ -4,6 +4,8 @@ Py-FEAT Data classes.
 
 import warnings
 
+import cv2
+
 # Suppress nilearn warnings that come from importing nltools
 warnings.filterwarnings("ignore", category=FutureWarning, module="nilearn")
 import os
@@ -21,7 +23,7 @@ from sklearn.model_selection import cross_val_score
 from torchvision.transforms import Compose
 from torchvision import transforms
 from torchvision.io import read_image, read_video
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, IterableDataset
 from torch import swapaxes
 from feat.transforms import Rescale
 from feat.utils import flatten_list
@@ -2556,6 +2558,44 @@ class TensorDataset(Dataset):
         }
 
 
+def get_video_metadata(video_file):
+    container = av.open(video_file)
+    stream = container.streams.video[0]
+    fps = stream.average_rate
+    height = stream.height
+    width = stream.width
+    num_frames = stream.frames
+    container.close()
+    metadata = {
+        "fps": float(fps),
+        "fps_frac": fps,
+        "height": height,
+        "width": width,
+        "num_frames": num_frames,
+        "shape": (height, width),
+    }
+    return metadata
+
+def convert_sec_to_min_sec(duration):
+    minutes = int(duration // 60)
+    seconds = int(duration % 60)
+    return f"{minutes:02d}:{seconds:02d}"
+
+def calc_approx_frame_time(idx, metadata):
+    """Calculate the approximate time of a frame in a video
+
+    Args:
+        frame_idx (int): frame number
+
+    Returns:
+        float: time in seconds
+    """
+    frame_time = idx / metadata["fps"]
+    total_time = metadata["num_frames"] / metadata["fps"]
+    time = total_time if idx >= metadata["num_frames"] else frame_time
+    return convert_sec_to_min_sec(time)
+
+
 class VideoDataset(Dataset):
     """Torch Video Dataset
 
@@ -2570,7 +2610,8 @@ class VideoDataset(Dataset):
         self.file_name = video_file
         self.skip_frames = skip_frames
         self.output_size = output_size
-        self.get_video_metadata(video_file)
+        # self.get_video_metadata(video_file)
+        self.metadata = get_video_metadata(video_file)
         # This is the list of frame ids used to slice the video not video_frames
         self.video_frames = np.arange(
             0, self.metadata["num_frames"], 1 if skip_frames is None else skip_frames
@@ -2614,22 +2655,6 @@ class VideoDataset(Dataset):
                 "Padding": {"Left": 0, "Top": 0, "Right": 0, "Bottom": 0},
             }
 
-    def get_video_metadata(self, video_file):
-        container = av.open(video_file)
-        stream = container.streams.video[0]
-        fps = stream.average_rate
-        height = stream.height
-        width = stream.width
-        num_frames = stream.frames
-        container.close()
-        self.metadata = {
-            "fps": float(fps),
-            "fps_frac": fps,
-            "height": height,
-            "width": width,
-            "num_frames": num_frames,
-            "shape": (height, width),
-        }
 
     def load_frame(self, idx):
         """Load in a single frame from the video using a lazy generator"""
@@ -2647,21 +2672,35 @@ class VideoDataset(Dataset):
         return frame_data, frame_idx
 
     def calc_approx_frame_time(self, idx):
-        """Calculate the approximate time of a frame in a video
+        return calc_approx_frame_time(idx, self.metadata)
 
-        Args:
-            frame_idx (int): frame number
 
-        Returns:
-            float: time in seconds
-        """
-        frame_time = idx / self.metadata["fps"]
-        total_time = self.metadata["num_frames"] / self.metadata["fps"]
-        time = total_time if idx >= self.metadata["num_frames"] else frame_time
-        return self.convert_sec_to_min_sec(time)
+class IterableVideoDataset(IterableDataset):
+    def __init__(self, video_path):
+        self.video_path = video_path
+        self.cap = None
+        self.i = 0
+        self.metadata = get_video_metadata(self.video_path)
 
-    @staticmethod
-    def convert_sec_to_min_sec(duration):
-        minutes = int(duration // 60)
-        seconds = int(duration % 60)
-        return f"{minutes:02d}:{seconds:02d}"
+    def __iter__(self):
+        self.cap = cv2.VideoCapture(self.video_path)
+        return self
+
+    def __next__(self):
+        ret, frame = self.cap.read()
+        if not ret:
+            self.cap.release()
+            raise StopIteration
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB).transpose(2, 0, 1)
+        result = {
+            'Image': torch.from_numpy(frame),
+            'Frame': self.i,
+            'FileName': self.video_path,
+            'Scale': 1.0,
+            'Padding': {'Left': 0, 'Top': 0, 'Right': 0, 'Bottom': 0},
+        }
+        self.i += 1
+        return result
+
+    def calc_approx_frame_time(self, idx):
+        return calc_approx_frame_time(idx, self.metadata)

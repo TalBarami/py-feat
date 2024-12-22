@@ -36,7 +36,7 @@ from feat.utils.image_operations import (
     convert_bbox_output,
     compute_original_image_size,
 )
-from feat.data import Fex, ImageDataset, TensorDataset, VideoDataset
+from feat.data import Fex, ImageDataset, TensorDataset, IterableVideoDataset
 from skops.io import load, get_untrusted_types
 from safetensors.torch import load_file
 import torch
@@ -570,11 +570,12 @@ class Detector(nn.Module, PyTorchModelHubMixin):
                 pin_memory=pin_memory,
             )
         elif data_type.lower() == "video":
-            dataset = VideoDataset(
-                inputs,
-                skip_frames=skip_frames,
-                output_size=output_size,
-            )
+            dataset = IterableVideoDataset(inputs)
+            # dataset = VideoDataset(
+            #     inputs,
+            #     skip_frames=skip_frames,
+            #     output_size=output_size,
+            # )
             data_loader = DataLoader(
                 dataset,
                 num_workers=num_workers,
@@ -588,12 +589,12 @@ class Detector(nn.Module, PyTorchModelHubMixin):
         batch_output = []
         frame_counter = 0
 
-        try:
-            _ = next(enumerate(tqdm(data_loader)))
-        except RuntimeError as e:
-            raise ValueError(
-                f"When using `batch_size > 1`, all images must either have the same dimension or `output_size` should be something other than `None` to pad images prior to processing\n{e}"
-            )
+        # try:
+        #     _ = next(enumerate(tqdm(data_loader)))
+        # except RuntimeError as e:
+        #     raise ValueError(
+        #         f"When using `batch_size > 1`, all images must either have the same dimension or `output_size` should be something other than `None` to pad images prior to processing\n{e}"
+        #     )
 
         for batch_id, batch_data in enumerate(data_iterator):
             faces_data = self.detect_faces(
@@ -671,7 +672,7 @@ class Detector(nn.Module, PyTorchModelHubMixin):
                         batch_results.loc[batch_results["frame"] == frame_idx, f"y_{i}"]
                         - batch_data["Padding"]["Top"].detach().numpy()[j]
                     ) / batch_data["Scale"].detach().numpy()[j]
-
+            batch_results = batch_results.drop(columns=FEAT_IDENTITY_COLUMNS[1:] + ['FrameHeight', 'FrameWidth', 'input'])
             if save:
                 batch_results.to_csv(save, mode="a", index=False, header=batch_id == 0)
             else:
@@ -703,8 +704,14 @@ class Detector(nn.Module, PyTorchModelHubMixin):
                 dataset.calc_approx_frame_time(x)
                 for x in batch_output["frame"].to_numpy()
             ]
-        batch_output.compute_identities(threshold=face_identity_threshold, inplace=True)
+        # batch_output.compute_identities(threshold=face_identity_threshold, inplace=True)
         # Overwrite with approx_time and identity columns
         if save:
             batch_output.to_csv(save, mode="w", index=False)
         return batch_output
+
+if __name__ == "__main__":
+    v = r'/home/baramit/win-mount/Users/Models/pyfeat/704767285_ADOS_Clinical_060524_0850_2.mp4'
+    o = r'/home/baramit/win-mount/Users/Models/pyfeat/704767285_ADOS_Clinical_060524_0850_2_feat2.csv'
+    d = Detector(identity_model=None)
+    d.detect(v, data_type='video', batch_size=128)
