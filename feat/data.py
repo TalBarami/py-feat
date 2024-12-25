@@ -5,6 +5,7 @@ Py-FEAT Data classes.
 import warnings
 
 import cv2
+from taltools.cv.videos import get_video_properties
 
 # Suppress nilearn warnings that come from importing nltools
 warnings.filterwarnings("ignore", category=FutureWarning, module="nilearn")
@@ -2565,6 +2566,8 @@ def get_video_metadata(video_file):
     height = stream.height
     width = stream.width
     num_frames = stream.frames
+    if fps is None:
+        (width, height), fps, num_frames, _ = get_video_properties(video_file)
     container.close()
     metadata = {
         "fps": float(fps),
