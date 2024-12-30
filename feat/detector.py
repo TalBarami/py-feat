@@ -709,9 +709,3 @@ class Detector(nn.Module, PyTorchModelHubMixin):
         if save:
             batch_output.to_csv(save, mode="w", index=False)
         return batch_output
-
-if __name__ == "__main__":
-    v = r'/home/baramit/win-mount/Users/Models/pyfeat/704767285_ADOS_Clinical_060524_0850_2.mp4'
-    o = r'/home/baramit/win-mount/Users/Models/pyfeat/704767285_ADOS_Clinical_060524_0850_2_feat2.csv'
-    d = Detector(identity_model=None)
-    d.detect(v, data_type='video', batch_size=128)
